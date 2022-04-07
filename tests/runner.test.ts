@@ -12,11 +12,20 @@ const importObject = {
     // the compiler easier, we define print so it logs to a string object.
     //  We can then examine output to see what would have been printed in the
     //  console.
-    print: (arg : any) => {
+    print_num: (arg : any) => {
       importObject.output += arg;
       importObject.output += "\n";
       return arg;
     },
+    print_bool: (arg : any) => {
+      if(arg !== 0) { importObject.output += "True"; }
+      else { importObject.output += "False"; }
+      importObject.output += "\n";
+    },
+    print_none: (arg : any) => {
+      importObject.output += "None";
+      importObject.output += "\n";
+    }
   },
 
   output: ""
@@ -48,5 +57,11 @@ describe('run(source, config) function', () => {
     const result = await runTest("2 + 3");
     expect(result).to.equal(5);
   });
+
+  it('prints a boolean', async() => {
+    await runTest("print(True)");
+    expect(importObject.output).to.equal("True\n");
+  });
+
 
 });

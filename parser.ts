@@ -125,7 +125,7 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
       t.nextSibling(); // Focus ArgList
       t.firstChild(); // Focus open paren
       var args = traverseArguments(t, s);
-      var result : Expr<any> = { tag: "call", name, arguments: args};
+      var result : Expr<any> = { tag: "call", name, args: args};
       t.parent();
       return result;
     case "BinaryExpression":

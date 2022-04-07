@@ -18,7 +18,7 @@ export type Expr<A> =
   | { a?: A, tag: "false" }
   | { a?: A, tag: "binop", op: Op, lhs: Expr<A>, rhs: Expr<A> }
   | { a?: A, tag: "id", name: string, global?: boolean }
-  | { a?: A, tag: "call", name: string, arguments: Expr<A>[] }
+  | { a?: A, tag: "call", name: string, args: Expr<A>[] }
 
 const ops = {"+": true, "-": true, ">": true, "and": true, "or": true};
 export type Op = keyof (typeof ops);

@@ -60,8 +60,16 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
       return [...lhsExprs, ...rhsExprs, ...opstmts];
     }
     case "call":
-      const valStmts = expr.arguments.map(e => codeGenExpr(e, locals)).flat();
-      valStmts.push(`(call $${expr.name})`);
+      const valStmts = expr.args.map(e => codeGenExpr(e, locals)).flat();
+      let toCall = expr.name;
+      if(expr.name === "print") {
+        switch(expr.args[0].a) {
+          case "bool": toCall = "print_bool"; break;
+          case "int": toCall = "print_num"; break;
+          case "none": toCall = "print_none"; break;
+        }
+      }
+      valStmts.push(`(call $${toCall})`);
       return valStmts;
   }
 }
@@ -101,8 +109,8 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
   }
 }
 export function compile(source : string) : string {
-  const ast = parseProgram(source);
-  tcProgram(ast);
+  let ast = parseProgram(source);
+  ast = tcProgram(ast);
   const emptyEnv = new Map<string, boolean>();
   const [vars, funs, stmts] = varsFunsStmts(ast);
   const funsCode : string[] = funs.map(f => codeGenStmt(f, emptyEnv)).map(f => f.join("\n"));
@@ -124,6 +132,9 @@ export function compile(source : string) : string {
 
   return `
     (module
+      (func $print_num (import "imports" "print_num") (param i32) (result i32))
+      (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
+      (func $print_none (import "imports" "print_none") (param i32) (result i32))
       ${varDecls}
       ${allFuns}
       (func (export "_start") ${retType}
