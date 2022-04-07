@@ -71,7 +71,7 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
   }
 }
 
-export function tcProgram(p : Stmt<any>[]) : Stmt<A>[] {
+export function tcProgram(p : Stmt<any>[]) : Stmt<Type>[] {
   const functions = new Map<string, [Type[], Type]>();
   p.forEach(s => {
     if(s.tag === "define") {

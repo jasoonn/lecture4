@@ -149,7 +149,7 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
   }
 }
 
-export function traverseArguments(c : TreeCursor, s : string) : Expr[] {
+export function traverseArguments(c : TreeCursor, s : string) : Expr<any>[] {
   c.firstChild();  // Focuses on open paren
   const args = [];
   c.nextSibling();

@@ -21,7 +21,7 @@ export type Expr<A> =
   | { a?: A, tag: "call", name: string, arguments: Expr<A>[] }
 
 const ops = {"+": true, "-": true, ">": true, "and": true, "or": true};
-type Op = keyof (typeof ops);
+export type Op = keyof (typeof ops);
 export function isOp(maybeOp : string) : maybeOp is Op {
   return maybeOp in ops;
 }

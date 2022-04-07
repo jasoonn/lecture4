@@ -3,6 +3,8 @@ import {Stmt, Expr, Type, Op} from './ast';
 import {parseProgram} from './parser';
 import { tcProgram } from './tc';
 
+type Env = Map<string, boolean>;
+
 function variableNames(stmts: Stmt<Type>[]) : string[] {
   const vars : Array<string> = [];
   stmts.forEach((stmt) => {
@@ -20,16 +22,14 @@ function varsFunsStmts(stmts: Stmt<Type>[]) : [string[], Stmt<Type>[], Stmt<Type
   return [variableNames(stmts), funs(stmts), nonFuns(stmts)];
 }
 
-export async function run(watSource : string) : Promise<number> {
+export async function run(watSource : string, config: any) : Promise<number> {
   const wabtApi = await wabt();
 
   const parsed = wabtApi.parseWat("example", watSource);
   const binary = parsed.toBinary({});
-  const wasmModule = await WebAssembly.instantiate(binary.buffer, {});
+  const wasmModule = await WebAssembly.instantiate(binary.buffer, config);
   return (wasmModule.instance.exports as any)._start();
 }
-
-(window as any)["runWat"] = run;
 
 export function opStmts(op : Op) {
   switch(op) {
@@ -43,45 +43,59 @@ export function opStmts(op : Op) {
   }
 }
 
-export function codeGenExpr(expr : Expr<Type>) : Array<string> {
+export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
   switch(expr.tag) {
-    case "id": return [`(local.get $${expr.name})`];
     case "number": return [`(i32.const ${expr.value})`];
     case "true": return [`(i32.const 1)`];
     case "false": return [`(i32.const 0)`];
+    case "id":
+      // Since we type-checked for making sure all variable exist, here we
+      // just check if it's a local variable and assume it is global if not
+      if(locals.has(expr.name)) { return [`(local.get $${expr.name})`]; }
+      else { return [`(global.get $${expr.name})`]; }
     case "binop": {
-      const lhsExprs = codeGenExpr(expr.lhs);
-      const rhsExprs = codeGenExpr(expr.rhs);
+      const lhsExprs = codeGenExpr(expr.lhs, locals);
+      const rhsExprs = codeGenExpr(expr.rhs, locals);
       const opstmts = opStmts(expr.op);
       return [...lhsExprs, ...rhsExprs, ...opstmts];
     }
     case "call":
-      const valStmts = expr.arguments.map(codeGenExpr).flat();
+      const valStmts = expr.arguments.map(e => codeGenExpr(e, locals)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
   }
 }
-export function codeGenStmt(stmt : Stmt<Type>) : Array<string> {
+export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
   switch(stmt.tag) {
     case "define":
+      const withParamsAndVariables = new Map<string, boolean>(locals.entries());
+
+      // Construct the environment for the function body
       const variables = variableNames(stmt.body);
+      variables.forEach(v => withParamsAndVariables.set(v, true));
+      stmt.parameters.forEach(p => withParamsAndVariables.set(p.name, true));
+
+      // Construct the code for params and variable declarations in the body
       const params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
-      const stmts = stmt.body.map(codeGenStmt).flat();
+      const varDecls = variables.map(v => `(local $${v} i32)`).join("\n");
+
+      const stmts = stmt.body.map(s => codeGenStmt(s, withParamsAndVariables)).flat();
       const stmtsBody = stmts.join("\n");
       return [`(func $${stmt.name} ${params} (result i32)
         (local $scratch i32)
+        ${varDecls}
         ${stmtsBody}
         (i32.const 0))`];
     case "return":
-      var valStmts = codeGenExpr(stmt.value);
+      var valStmts = codeGenExpr(stmt.value, locals);
       valStmts.push("return");
       return valStmts;
     case "assign":
-      var valStmts = codeGenExpr(stmt.value);
+      var valStmts = codeGenExpr(stmt.value, locals);
       valStmts.push(`(local.set $${stmt.name})`);
       return valStmts;
     case "expr":
-      const result = codeGenExpr(stmt.expr);
+      const result = codeGenExpr(stmt.expr, locals);
       result.push("(local.set $scratch)");
       return result;
   }
@@ -89,12 +103,13 @@ export function codeGenStmt(stmt : Stmt<Type>) : Array<string> {
 export function compile(source : string) : string {
   const ast = parseProgram(source);
   tcProgram(ast);
+  const emptyEnv = new Map<string, boolean>();
   const [vars, funs, stmts] = varsFunsStmts(ast);
-  const funsCode : string[] = funs.map(codeGenStmt).map(f => f.join("\n"));
+  const funsCode : string[] = funs.map(f => codeGenStmt(f, emptyEnv)).map(f => f.join("\n"));
   const allFuns = funsCode.join("\n\n");
   const varDecls = vars.map(v => `(global $${v} i32)`);
 
-  const allStmts = stmts.map(codeGenStmt).flat();
+  const allStmts = stmts.map(s => codeGenStmt(s, emptyEnv)).flat();
 
   const main = [`(local $scratch i32)`, ...allStmts].join("\n");
 
