@@ -50,7 +50,7 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt<any> {
       t.nextSibling(); // Focus on name of function
       var name = s.substring(t.from, t.to);
       t.nextSibling(); // Focus on ParamList
-      var parameters = traverseParameters(s, t)
+      var params = traverseParameters(s, t)
       t.nextSibling(); // Focus on Body or TypeDef
       let ret : Type = "none";
       let maybeTD = t;
@@ -69,7 +69,7 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt<any> {
       t.parent();      // Pop to FunctionDefinition
       return {
         tag: "define",
-        name, parameters, body, ret
+        name, params, body, ret
       }
       
   }

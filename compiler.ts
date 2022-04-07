@@ -81,10 +81,10 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
       // Construct the environment for the function body
       const variables = variableNames(stmt.body);
       variables.forEach(v => withParamsAndVariables.set(v, true));
-      stmt.parameters.forEach(p => withParamsAndVariables.set(p.name, true));
+      stmt.params.forEach(p => withParamsAndVariables.set(p.name, true));
 
       // Construct the code for params and variable declarations in the body
-      const params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
+      const params = stmt.params.map(p => `(param $${p.name} i32)`).join(" ");
       const varDecls = variables.map(v => `(local $${v} i32)`).join("\n");
 
       const stmts = stmt.body.map(s => codeGenStmt(s, withParamsAndVariables)).flat();
@@ -100,7 +100,8 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
       return valStmts;
     case "assign":
       var valStmts = codeGenExpr(stmt.value, locals);
-      valStmts.push(`(local.set $${stmt.name})`);
+      if(locals.has(stmt.name)) { valStmts.push(`(local.set $${stmt.name})`); }
+      else { valStmts.push(`(global.set $${stmt.name})`); }
       return valStmts;
     case "expr":
       const result = codeGenExpr(stmt.expr, locals);
@@ -115,7 +116,7 @@ export function compile(source : string) : string {
   const [vars, funs, stmts] = varsFunsStmts(ast);
   const funsCode : string[] = funs.map(f => codeGenStmt(f, emptyEnv)).map(f => f.join("\n"));
   const allFuns = funsCode.join("\n\n");
-  const varDecls = vars.map(v => `(global $${v} i32)`);
+  const varDecls = vars.map(v => `(global $${v} (mut i32) (i32.const 0))`).join("\n");
 
   const allStmts = stmts.map(s => codeGenStmt(s, emptyEnv)).flat();
 

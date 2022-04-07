@@ -59,7 +59,7 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
     }
     case "define": {
       const bodyvars = new Map<string, Type>(variables.entries());
-      s.parameters.forEach(p => { bodyvars.set(p.name, p.typ)});
+      s.params.forEach(p => { bodyvars.set(p.name, p.typ)});
       const newStmts = s.body.map(bs => tcStmt(bs, functions, bodyvars, s.ret));
       return { ...s, body: newStmts };
     }
@@ -81,7 +81,7 @@ export function tcProgram(p : Stmt<any>[]) : Stmt<Type>[] {
   const functions = new Map<string, [Type[], Type]>();
   p.forEach(s => {
     if(s.tag === "define") {
-      functions.set(s.name, [s.parameters.map(p => p.typ), s.ret]);
+      functions.set(s.name, [s.params.map(p => p.typ), s.ret]);
     }
   });
 
