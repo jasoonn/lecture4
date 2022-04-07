@@ -1,8 +1,8 @@
 import { TreeCursor } from 'lezer';
 import {parser} from 'lezer-python';
-import {Parameter, Stmt, Expr, Type} from './ast';
+import {Parameter, Stmt, Expr, Type, isOp} from './ast';
 
-export function parseProgram(source : string) : Array<Stmt> {
+export function parseProgram(source : string) : Array<Stmt<any>> {
   const t = parser.parse(source).cursor();
   return traverseStmts(source, t);
 }
@@ -22,7 +22,7 @@ export function traverseStmts(s : string, t : TreeCursor) {
 /*
   Invariant – t must focus on the same node at the end of the traversal
 */
-export function traverseStmt(s : string, t : TreeCursor) : Stmt {
+export function traverseStmt(s : string, t : TreeCursor) : Stmt<any> {
   switch(t.type.name) {
     case "ReturnStatement":
       t.firstChild();  // Focus return keyword
@@ -89,7 +89,7 @@ export function traverseType(s : string, t : TreeCursor) : Type {
   }
 }
 
-export function traverseParameters(s : string, t : TreeCursor) : Array<Parameter> {
+export function traverseParameters(s : string, t : TreeCursor) : Parameter[] {
   t.firstChild();  // Focuses on open paren
   const parameters = []
   t.nextSibling(); // Focuses on a VariableName
@@ -110,8 +110,11 @@ export function traverseParameters(s : string, t : TreeCursor) : Array<Parameter
   return parameters;
 }
 
-export function traverseExpr(s : string, t : TreeCursor) : Expr {
+export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
   switch(t.type.name) {
+    case "Boolean":
+      if(s.substring(t.from, t.to) === "True") { return { tag: "true" }; }
+      else { return { tag: "false" }; }
     case "Number":
       return { tag: "number", value: Number(s.substring(t.from, t.to)) };
     case "VariableName":
@@ -122,9 +125,27 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr {
       t.nextSibling(); // Focus ArgList
       t.firstChild(); // Focus open paren
       var args = traverseArguments(t, s);
-      var result : Expr = { tag: "call", name, arguments: args};
+      var result : Expr<any> = { tag: "call", name, arguments: args};
       t.parent();
       return result;
+    case "BinaryExpression":
+      t.firstChild(); // go to lhs
+      const lhsExpr = traverseExpr(s, t);
+      t.nextSibling(); // go to op
+      var opStr = s.substring(t.from, t.to);
+      if(!isOp(opStr)) {
+        throw new Error(`Unknown or unhandled op: ${opStr}`);
+      }
+      t.nextSibling(); // go to rhs
+      const rhsExpr = traverseExpr(s, t);
+      t.parent();
+      return {
+        tag: "binop",
+        op: opStr,
+        lhs: lhsExpr,
+        rhs: rhsExpr
+      };
+  
   }
 }
 

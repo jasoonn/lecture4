@@ -3,10 +3,22 @@ import { Expr, Stmt, Type } from "./ast";
 type FunctionsEnv = Map<string, [Type[], Type]>;
 type BodyEnv = Map<string, Type>;
 
-export function tcExpr(e : Expr, functions : FunctionsEnv, variables : BodyEnv) : Type {
+export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : BodyEnv) : Expr<Type> {
   switch(e.tag) {
-    case "number": return "int";
-    case "id": return variables.get(e.name);
+    case "number": return { a: "int", ...e };
+    case "true": return { a: "bool", ...e };
+    case "false": return { a: "bool", ...e };
+    case "binop": {
+      switch(e.op) {
+        case "+": return { a: "int", ...e };
+        case "-": return { a: "int", ...e };
+        case ">": return { a: "bool", ...e };
+        case "and": return { a: "bool", ...e };
+        case "or": return { a: "bool", ...e };
+        default: throw new Error(`Unhandled op ${e.op}`)
+      }
+    }
+    case "id": return { a: variables.get(e.name), ...e };
     case "call":
       if(!functions.has(e.name)) {
         throw new Error(`function ${e.name} not found`);
@@ -17,48 +29,49 @@ export function tcExpr(e : Expr, functions : FunctionsEnv, variables : BodyEnv) 
         throw new Error(`Expected ${args.length} arguments but got ${e.arguments.length}`);
       }
 
-      args.forEach((a, i) => {
+      const newArgs = args.map((a, i) => {
         const argtyp = tcExpr(e.arguments[i], functions, variables);
-        if(a !== argtyp) { throw new Error(`Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
+        if(a !== argtyp.a) { throw new Error(`Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
+        return argtyp
       });
 
-      return ret;
+      return { a: ret, arguments: newArgs, ...e };
   }
 }
 
-export function tcStmt(s : Stmt, functions : FunctionsEnv, variables : BodyEnv, currentReturn : Type) {
+export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : BodyEnv, currentReturn : Type) : Stmt<Type> {
   switch(s.tag) {
     case "assign": {
       const rhs = tcExpr(s.value, functions, variables);
-      if(variables.has(s.name) && variables.get(s.name) !== rhs) {
+      if(variables.has(s.name) && variables.get(s.name) !== rhs.a) {
         throw new Error(`Cannot assign ${rhs} to ${variables.get(s.name)}`);
       }
       else {
-        variables.set(s.name, rhs);
+        variables.set(s.name, rhs.a);
       }
-      return;
+      return { value: rhs, ...s };
     }
     case "define": {
       const bodyvars = new Map<string, Type>(variables.entries());
       s.parameters.forEach(p => { bodyvars.set(p.name, p.typ)});
-      s.body.forEach(bs => tcStmt(bs, functions, bodyvars, s.ret));
-      return;
+      const newStmts = s.body.forEach(bs => tcStmt(bs, functions, bodyvars, s.ret));
+      return { body: newStmts, ...s };
     }
     case "expr": {
-      tcExpr(s.expr, functions, variables);
-      return;
+      const ret = tcExpr(s.expr, functions, variables);
+      return { expr: ret, ...s };
     }
     case "return": {
       const valTyp = tcExpr(s.value, functions, variables);
-      if(valTyp !== currentReturn) {
+      if(valTyp.a !== currentReturn) {
         throw new Error(`${valTyp} returned but ${currentReturn} expected.`);
       }
-      return;
+      return { value: valTyp, ...s };
     }
   }
 }
 
-export function tcProgram(p : Stmt[]) {
+export function tcProgram(p : Stmt<any>[]) : Stmt<A>[] {
   const functions = new Map<string, [Type[], Type]>();
   p.forEach(s => {
     if(s.tag === "define") {
@@ -67,12 +80,14 @@ export function tcProgram(p : Stmt[]) {
   });
 
   const globals = new Map<string, Type>();
-  p.forEach(s => {
+  return p.map(s => {
     if(s.tag === "assign") {
-      globals.set(s.name, tcExpr(s.value, functions, globals));
+      const rhs = tcExpr(s.value, functions, globals);
+      globals.set(s.name, rhs.a);
+      return { value: rhs, ...s };
     }
     else {
-      tcStmt(s, functions, globals, "none");
+      return tcStmt(s, functions, globals, "none");
     }
   });
 }
