@@ -5,17 +5,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   function display(arg : string) {
     const elt = document.createElement("pre");
     document.getElementById("output").appendChild(elt);
-    elt.innerText = arg;
+    elt.innerText = arg+" ";
   }
   var importObject = {
     imports: {
       print_num: (arg : any) => {
         console.log("Logging from WASM: ", arg);
-        display(String(arg));
+        display(String(arg>>2));
         return arg;
       },
       print_bool: (arg : any) => {
-        if(arg === 0) { display("False"); }
+        if(arg === 2) { display("False"); }
         else { display("True"); }
         return arg;
       },
@@ -35,7 +35,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       const code = document.getElementById("generated-code");
       code.textContent = wat;
       const result = await run(wat, importObject);
-      output.textContent += String(result);
+      if (result===3) output.textContent += "Result: True ";
+      else if (result===2) output.textContent += "Result: False ";
+      else if (result===1) output.textContent += "Result: None ";
+      else output.textContent += "Result:"+String(result>>2)+" ";
       output.setAttribute("style", "color: black");
     }
     catch(e) {

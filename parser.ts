@@ -4,18 +4,20 @@ import {Parameter, Stmt, Expr, Type, isOp} from './ast';
 
 export function parseProgram(source : string) : Array<Stmt<any>> {
   const t = parser.parse(source).cursor();
-  return traverseStmts(source, t);
+  return traverseStmts(source, t, 0);
 }
 
-export function traverseStmts(s : string, t : TreeCursor) {
+export function traverseStmts(s : string, t : TreeCursor, jump: number) {
   // The top node in the program is a Script node with a list of children
   // that are various statements
   t.firstChild();
+  for (let i=0; i<jump; i++) t.nextSibling();
   const stmts = [];
   do {
     stmts.push(traverseStmt(s, t));
   } while(t.nextSibling()); // t.nextSibling() returns false when it reaches
                             //  the end of the list of children
+  t.parent();
   return stmts;
 }
 
@@ -23,7 +25,49 @@ export function traverseStmts(s : string, t : TreeCursor) {
   Invariant – t must focus on the same node at the end of the traversal
 */
 export function traverseStmt(s : string, t : TreeCursor) : Stmt<any> {
-  switch(t.type.name) {
+  var name = t.type.name
+  switch(name) {
+    case "IfStatement":
+      t.firstChild();//if
+      t.nextSibling();//BinaryExpression
+      var cond=traverseExpr(s, t);
+      t.nextSibling();//If body
+      var ifBody = traverseStmts(s, t, 1);
+      if (t.nextSibling()) {
+        console.log(s.substring(t.from, t.to))
+        if (s.substring(t.from, t.to)=="elif"){
+          t.nextSibling();//BinaryExpression
+          var elseIfCond = traverseExpr(s, t);
+          t.nextSibling();//body
+          var elseIfBody = traverseStmts(s, t, 1);
+          if (t.nextSibling()){
+            t.nextSibling();
+            var elseBody = traverseStmts(s, t, 1);
+            t.parent();
+            return { tag: "if", cond, ifBody, elseIfCond, elseIfBody, elseBody};
+          }else{
+            t.parent();
+            return { tag: "if", cond, ifBody, elseIfCond, elseIfBody}
+          }
+        }else if (s.substring(t.from, t.to)=="else"){
+          t.nextSibling();//Body
+          var elseBody = traverseStmts(s, t, 1);
+          t.parent();
+          return { tag: "if", cond, ifBody, elseBody};
+        }else {
+          throw new Error("Unknown if statement");
+        }
+      }
+      t.parent();
+      return { tag: "if", cond, ifBody};
+    case "WhileStatement":
+      t.firstChild();
+      t.nextSibling();
+      var cond = traverseExpr(s, t);
+      t.nextSibling();
+      var stmtBody = traverseStmts(s, t, 1);
+      t.parent();
+      return { tag: "while", cond, stmtBody};
     case "ReturnStatement":
       t.firstChild();  // Focus return keyword
       t.nextSibling(); // Focus expression
@@ -34,11 +78,25 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt<any> {
       t.firstChild(); // focused on name (the first child)
       var name = s.substring(t.from, t.to);
       t.nextSibling(); // focused on = sign. May need this for complex tasks, like +=!
-      t.nextSibling(); // focused on the value expression
-
-      var value = traverseExpr(s, t);
-      t.parent();
-      return { tag: "assign", name, value };
+      console.log(s.substring(t.from, t.to));
+      if (s.substring(t.from, t.to)==="="){
+        t.nextSibling(); // focused on the value expression
+        var value = traverseExpr(s, t);
+        t.parent();
+        return { tag: "assign", name, value };
+      }else{
+        if(t.type.name !== "TypeDef") { throw new Error("Missed type annotation for variable initialization")};
+        t.firstChild();
+        t.nextSibling();
+        var type  = s.substring(t.from, t.to);
+        //todo assign type
+        t.parent();
+        t.nextSibling();// =
+        t.nextSibling();
+        var value = traverseExpr(s, t);
+        t.parent();
+        return { tag: "var", name, literal: value};
+      }
     case "ExpressionStatement":
       t.firstChild(); // The child is some kind of expression, the
                       // ExpressionStatement is just a wrapper with no information
@@ -115,9 +173,13 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
     case "Boolean":
       if(s.substring(t.from, t.to) === "True") { return { tag: "true" }; }
       else { return { tag: "false" }; }
+    case "None":
+      return { tag: "none"};
     case "Number":
       return { tag: "number", value: Number(s.substring(t.from, t.to)) };
     case "VariableName":
+      if (s.substring(t.from, t.to)==="true") return { tag: "true"};
+      else if (s.substring(t.from, t.to)==="false") return { tag: "false"};
       return { tag: "id", name: s.substring(t.from, t.to) };
     case "CallExpression":
       t.firstChild(); // Focus name
@@ -145,6 +207,13 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
         lhs: lhsExpr,
         rhs: rhsExpr
       };
+    case "ParenthesizedExpression":
+        t.firstChild();
+        t.nextSibling();
+        const expr = traverseExpr(s, t);
+        t.parent();
+        return expr;
+        
   
   }
 }

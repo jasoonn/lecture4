@@ -1,4 +1,5 @@
-import { Expr, Stmt, Type } from "./ast";
+import { createEmitAndSemanticDiagnosticsBuilderProgram } from "typescript";
+import { Expr, Stmt, Type} from "./ast";
 
 type FunctionsEnv = Map<string, [Type[], Type]>;
 type BodyEnv = Map<string, Type>;
@@ -8,13 +9,26 @@ export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : Body
     case "number": return { ...e, a: "int" };
     case "true": return { ...e, a: "bool" };
     case "false": return { ...e, a: "bool" };
+    case "none": return {...e, a:"none"}
     case "binop": {
+      var lhs = tcExpr(e.lhs, functions, variables);
+      var rhs = tcExpr(e.rhs, functions, variables);
+      if (lhs.a!=rhs.a) { throw new Error("Cannot apply operator "+e.op+" on types "+lhs.a+" and "+rhs.a); }
       switch(e.op) {
-        case "+": return { ...e, a: "int" };
-        case "-": return { ...e, a: "int" };
-        case ">": return { ...e, a: "bool" };
-        case "and": return { ...e, a: "bool" };
-        case "or": return { ...e, a: "bool" };
+        case "+": return { ...e, lhs, rhs, a: "int" };
+        case "-": return { ...e, lhs, rhs, a: "int" };
+        case ">": return { ...e, lhs, rhs, a: "bool" };
+        case "and": return { ...e, lhs, rhs, a: "bool" };
+        case "or": return { ...e, lhs, rhs, a: "bool" };
+        case "*": return { ...e, lhs, rhs, a: "int" };
+        case "//": return { ...e, lhs, rhs, a: "int" };
+        case "%": return { ...e, lhs, rhs, a: "int" };
+        case "==": return { ...e, lhs, rhs, a: "bool" };
+        case "!=": return { ...e, lhs, rhs, a: "bool" };
+        case "<=": return { ...e, lhs, rhs, a: "bool" };
+        case ">=": return { ...e, lhs, rhs, a: "bool" };
+        case "<": return { ...e, lhs, rhs, a: "bool" };
+        case "is": return { ...e, lhs, rhs, a: "bool" };
         default: throw new Error(`Unhandled op ${e.op}`)
       }
     }
@@ -45,17 +59,101 @@ export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : Body
   }
 }
 
+
+function duplicateEnv(env : BodyEnv) : BodyEnv{
+  return new Map(env);
+}
+
+function duplicateFunc(functions: FunctionsEnv): FunctionsEnv{
+  return new Map(functions);
+}
+
+
+
+export function tcStmts( stmts: Stmt<any>[], functions : FunctionsEnv, variables : BodyEnv) : Stmt<Type>[]{
+  stmts.forEach(stmt => {
+    tcStmt(stmt, functions, variables, "none");
+  })
+  return [];
+}
+
+
+// export function tcCheckVarDefs(defs: VarDef<any>[], variables : BodyEnv): VarDef<Type>[]{
+//   const typedDefs : VarDef<Type>[] = []; 
+//   defs.forEach((def) => {
+//     const typedDef = tcLiteral(def.init);
+//     if (typedDef.a !== def.typedVar.type) throw new Error("Type Error: init type does not match literal type")
+//     variables.set(def.typedVar.name, def.typedVar.type);
+//     typedDefs.push({...def, a: def.typedVar.type, init: typedDef});
+//   })
+//   return typedDefs;
+// }
+
+// export function tcFunDef(func: FuncDef<any>, variables : BodyEnv, functions : FunctionsEnv): FuncDef<Type>{
+//   const localVariables = duplicateEnv(variables);
+//   // add params to env
+//   func.params.forEach(param => {
+//     localVariables.set(param.name, param.type);
+//   })
+//   // check inits
+//   // add inits to env
+//   const typedInits = tcCheckVarDefs(func.inits, variables);
+//   func.inits.forEach(init => {
+//     localVariables.set(init.typedVar.name, init.typedVar.type);
+//   })
+//   // add func type to funEnv
+//   const localFunctions = duplicateFunc(functions);
+//   localFunctions.set(func.name, [func.params.map(param=> param.type), func.ret])
+  
+//   // check body
+//   const typedStmts = tcStmts(func.body, localFunctions, localVariables);
+//   // make sure every path has the expected return type
+//   return {...func, inits: typedInits, body: typedStmts}
+// }
+
 export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : BodyEnv, currentReturn : Type) : Stmt<Type> {
   switch(s.tag) {
+    case "while": {
+      const cond = tcExpr(s.cond, functions, variables);
+      if (cond.a!=="bool") throw new Error("Condition expression cannot be type of "+cond.a);
+      const stmtBody = s.stmtBody.map(bs => tcStmt(bs, functions, variables, currentReturn));
+      return {...s, cond, stmtBody};
+    }
+    case "var":{
+      const literal = tcExpr(s.literal, functions, variables);
+      //todo check type
+      variables.set(s.name, literal.a);
+      return {...s, literal};
+    }
     case "assign": {
       const rhs = tcExpr(s.value, functions, variables);
-      if(variables.has(s.name) && variables.get(s.name) !== rhs.a) {
-        throw new Error(`Cannot assign ${rhs} to ${variables.get(s.name)}`);
+      if(variables.has(s.name) ) {
+        if (variables.get(s.name) !== rhs.a) throw new Error(`Cannot assign ${rhs} to ${variables.get(s.name)}`);
       }
-      else {
-        variables.set(s.name, rhs.a);
-      }
+      else { throw new Error(`Not a variable ${s.name}`);}
       return { ...s, value: rhs };
+    }
+    case "if": {
+      const cond = tcExpr(s.cond, functions, variables);
+      if (cond.a!=="bool") throw new Error("cond in if is not boolean");
+      const ifBody = s.ifBody.map(bs => tcStmt(bs, functions, variables, currentReturn));
+      if (s.elseIfBody!==undefined) {
+        const elseIfCond = tcExpr(s.elseIfCond, functions, variables);
+        if (elseIfCond.a!=="bool") throw new Error("cond in elif is not boolean");
+        const elseIfBody = s.elseIfBody.map(bs => tcStmt(bs, functions, variables, currentReturn));
+        if (s.elseBody!==undefined){
+          const elseBody = s.elseBody.map(bs => tcStmt(bs, functions, variables, currentReturn));
+          return {...s, cond, ifBody, elseIfCond, elseIfBody, elseBody};
+        }else {
+          return {...s, cond, ifBody, elseIfCond, elseIfBody};
+        }
+      }
+      if (s.elseBody!==undefined) {
+        const elseBody = s.elseBody.map(bs => tcStmt(bs, functions, variables, currentReturn));
+        return {...s, cond, ifBody, elseBody};
+      }else{
+        return {...s, cond, ifBody};
+      }
     }
     case "define": {
       const bodyvars = new Map<string, Type>(variables.entries());

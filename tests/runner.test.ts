@@ -48,13 +48,13 @@ describe('run(source, config) function', () => {
   // asynchronous return value. 
   it('returns the right number', async () => {
     const result = await runTest("987");
-    expect(result).to.equal(987);
+    expect(result>>2).to.equal(987);
   });
 
   // Note: it is often helpful to write tests for a functionality before you
   // implement it. You will make this test pass!
   it('adds two numbers', async() => {
-    const result = await runTest("2 + 3");
+    const result = await runTest("2 + 3")>>2;
     expect(result).to.equal(5);
   });
 
