@@ -1,5 +1,5 @@
 import wabt from 'wabt';
-import {Stmt, Expr, Type, Op} from './ast';
+import {Stmt, Expr, Type, Op, UniOp} from './ast';
 import {parseProgram} from './parser';
 import { tcProgram } from './tc';
 
@@ -8,7 +8,7 @@ type Env = Map<string, boolean>;
 function variableNames(stmts: Stmt<Type>[]) : string[] {
   const vars : Array<string> = [];
   stmts.forEach((stmt) => {
-    if(stmt.tag === "var") { vars.push(stmt.name); }
+    if(stmt.tag === "varinit") { vars.push(stmt.name); }
   });
   return vars;
 }
@@ -22,7 +22,7 @@ function varsFunsStmts(stmts: Stmt<Type>[]) : [string[], Stmt<Type>[], Stmt<Type
   return [variableNames(stmts), funs(stmts), nonFuns(stmts)];
 }
 
-export async function run(watSource : string, config: any) : Promise<number> {
+export async function runn(watSource : string, config: any) : Promise<number> {
   const wabtApi = await wabt();
 
   const parsed = wabtApi.parseWat("example", watSource);
@@ -35,59 +35,28 @@ export function opStmts(op : Op) {
   switch(op) {
     case "+": return [`(i32.add)`];
     case "-": return [`(i32.sub)`];
-    case ">": return [`(i32.gt_s)
-    (i32.const 2)
-    (i32.or)
-    `];
-    case "and": return [`(i32.and)
-    (i32.const 2)
-    (i32.or)
-    `];
-    case "or": return [`(i32.or)
-    (i32.const 2)
-    (i32.or)
-    `];
-    case "*": return [`i32.mul`];
-    case "//": return [`(i32.div_s)
-    (i32.const 2)
-    (i32.shl)
-    `];
-    case "%": return [`i32.rem_s`];
-    case "==": return [`(i32.eq)
-    (i32.const 2)
-    (i32.or)
-    `];
-    case "!=": return [`(i32.ne)
-    (i32.const 2)
-    (i32.or)
-    `];
-    case "<=": return [`(i32.le_s)
-    (i32.const 2)
-    (i32.or)
-    `];
-    case ">=": return [`(i32.ge_s)
-    (i32.const 2)
-    (i32.or)
-    `];
-    case "<": return [`(i32.lt_s)
-    (i32.const 2)
-    (i32.or)
-    `];
-    case "is": return [`(i32.eq)
-    (i32.const 2)
-    (i32.or)
-    `];
+    case "*": return [`(i32.mul)`];
+    case "//": return [`(i32.div_s)`]; // trap: div by 0
+    case "%": return [`(i32.rem_s)`]; // trap div by 0
+    case "==": return [`(i32.eq)`];
+    case "!=": return [`(i32.ne)`];
+    case "<": return [`(i32.lt_s)`];
+    case ">": return [`(i32.gt_s)`];
+    case "<=": return [`(i32.le_s)`];
+    case ">=": return [`(i32.ge_s)`];
+    case "and": return [`(i32.and)`];
+    case "or": return [`(i32.or)`];
+    case "is": return [`(i32.eq)`];
     default:
       throw new Error(`Unhandled or unknown op: ${op}`);
   }
 }
 
-export function codeGenExpr(expr : Expr<Type>, locals : Env, isGlobal:boolean=false) : Array<string> {
+export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
   switch(expr.tag) {
-    case "number": return [`(i32.const ${expr.value<<2})`];
-    case "true": return [`(i32.const 3)`];
-    case "false": return [`(i32.const 2)`];
-    case "none": return [`(i32.const 1)`];
+    case "number": return [`(i32.const ${expr.value})`];
+    case "true": return [`(i32.const 1)`];
+    case "false": return [`(i32.const 0)`];
     case "id":
       // Since we type-checked for making sure all variable exist, here we
       // just check if it's a local variable and assume it is global if not
@@ -98,6 +67,15 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env, isGlobal:boolean=fa
       const rhsExprs = codeGenExpr(expr.rhs, locals);
       const opstmts = opStmts(expr.op);
       return [...lhsExprs, ...rhsExprs, ...opstmts];
+    }
+    case "uniop": {
+      const value = codeGenExpr(expr.value, locals);
+      if (expr.op=="-"){
+        return [`(i32.const 0)`, ...value, `(i32.sub)`];
+      }
+      else{
+        return [`(i32.const 1)`, ...value, `i32.xor`];
+      }
     }
     case "call":
       const valStmts = expr.args.map(e => codeGenExpr(e, locals)).flat();
@@ -135,86 +113,46 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
         ${varDecls}
         ${stmtsBody}
         (i32.const 0))`];
-    case "if":
-      var cond = codeGenExpr(stmt.cond, locals).join("\n");
-      var ifBody = stmt.ifBody.map(s => codeGenStmt(s, locals)).flat().join("\n");
-      var elseIfCode = ``;
-      var elseCode = ``;
-      if (stmt.elseIfCond!==undefined){
-        const elseIfCond = codeGenExpr(stmt.elseIfCond, locals).join("\n");
-        const elseIfBody = stmt.elseIfBody.map(s => codeGenStmt(s, locals)).flat().join("\n");;
-        var innerElse = ``;
-        if (stmt.elseBody!==undefined){
-          const elseBody = stmt.elseBody.map(s => codeGenStmt(s, locals)).flat().join("\n");;
-          innerElse = `
-               (else
-                ${elseBody}
-               )
-          `;
-        }
-        elseIfCode = `
-            (else
-              ${elseIfCond}
-              i32.const 3
-              i32.eq
-              (if
-                (then
-                  ${elseIfBody}
-                )
-                ${innerElse}
-              )
-            )
-        `;
-      } else if (stmt.elseBody!==undefined){
-        const elseBody = stmt.elseBody.map(s => codeGenStmt(s, locals)).flat().join("\n");
-        elseCode = `
-              (else
-              ${elseBody}
-              )
-        `;
-      }
-      
-      return [`
-        ${cond}
-        i32.const 3
-        i32.eq
-        (if
-          (then
-            ${ifBody}
-          )
-          ${elseIfCode}
-          ${elseCode}
-        )
-      `]
     case "while":
-      var condStmts = codeGenExpr(stmt.cond, locals).join("\n");
-      const whileStmts = stmt.stmtBody.map(s => codeGenStmt(s, locals)).flat();
-      const whileStmtsBody = whileStmts.join("\n");
-      console.log(condStmts);
-      console.log(whileStmtsBody);
-      return [`
-        (loop $my_loop 
-          ${condStmts}
-          i32.const 3
-          i32.eq
-          (if
-            (then
-              ${whileStmtsBody}
-              br $my_loop
-            )
-          )
-        )`];
+      var valStmts : string[] = []
+      var cond = codeGenExpr(stmt.cond, locals);
+      valStmts.push(`(block $${stmt.cond.tag}_while`)
+      valStmts.push(`(loop $${stmt.cond.tag}_loop`)
+      valStmts.push(...cond)
+      valStmts.push("(i32.const 0)")
+      valStmts.push("(i32.eq)") // use result == 0 to check condition
+      valStmts.push(`(br_if $${stmt.cond.tag}_while)`)
+      const bds = stmt.body.map(s => codeGenStmt(s, locals)).flat()
+      valStmts.push(...bds)
+      valStmts.push(`(br $${stmt.cond.tag}_loop)))`)
+      return valStmts;
+    case "if":
+      var valStmts : string[] = []
+      var cond = codeGenExpr(stmt.cond, locals);
+      var bd1 = stmt.body.map(s => codeGenStmt(s, locals)).flat()
+      valStmts.push(...cond, `(if `, `(then `, ...bd1, `)`)
+
+      var eicond = codeGenExpr(stmt.eicond, locals)
+      var eibody = stmt.eibody.map(s => codeGenStmt(s, locals)).flat()
+      if (eibody.length > 0) valStmts.push(`(else `, ...eicond, `(if `, `(then `, ...eibody, `)`)
+      var els = stmt.els.map(s => codeGenStmt(s, locals)).flat()
+      if (els.length > 0) valStmts.push(`(else `, ...els, ')')
+      if (eibody.length > 0) valStmts.push(`))`); // for the second if and first else
+      valStmts.push(`)`) // first if
+      return valStmts;
+    case "pass":
+      return []
     case "return":
       var valStmts = codeGenExpr(stmt.value, locals);
       valStmts.push("return");
       return valStmts;
-    case "assign":
-      var valStmts = codeGenExpr(stmt.value, locals);
+    case "varinit":
+      var valStmts = codeGenExpr(stmt.init, locals);
       if(locals.has(stmt.name)) { valStmts.push(`(local.set $${stmt.name})`); }
       else { valStmts.push(`(global.set $${stmt.name})`); }
       return valStmts;
-    case "var":
-      var valStmts = codeGenExpr(stmt.literal, locals);
+    case "assign":
+      var valStmts = codeGenExpr(stmt.value, locals);
       if(locals.has(stmt.name)) { valStmts.push(`(local.set $${stmt.name})`); }
       else { valStmts.push(`(global.set $${stmt.name})`); }
       return valStmts;
@@ -227,12 +165,13 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
 export function compile(source : string) : string {
   let ast = parseProgram(source);
   ast = tcProgram(ast);
+  console.log(ast)
   const emptyEnv = new Map<string, boolean>();
   const [vars, funs, stmts] = varsFunsStmts(ast);
   const funsCode : string[] = funs.map(f => codeGenStmt(f, emptyEnv)).map(f => f.join("\n"));
   const allFuns = funsCode.join("\n\n");
   const varDecls = vars.map(v => `(global $${v} (mut i32) (i32.const 0))`).join("\n");
-
+  console.log(stmts)
   const allStmts = stmts.map(s => codeGenStmt(s, emptyEnv)).flat();
 
   const main = [`(local $scratch i32)`, ...allStmts].join("\n");

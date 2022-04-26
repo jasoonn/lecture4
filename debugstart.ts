@@ -1,24 +1,14 @@
 import { stringifyTree } from "./treeprinter";
 import { parseProgram } from "./parser";
 import {parser} from "lezer-python";
-import {tcProgram} from "./tc"
-import {compile} from "./compiler"
+import { tcProgram } from "./tc";
 
-//const source = "(5)\n(6)";
-//const source = "a=2\nwhile(a>0):\n print(a)\n a=a-1\n" ;
-//const source = "a = 2\na = a-1\nprint(a)"
-const source= "None \n none\n"
-
-const t = parser.parse(source);
-console.log(stringifyTree(t.cursor(),source,0));
-// const out = compiler.compile(source);
-// console.log(out);
-var a = parseProgram(source)
-console.log(a)
-var b = tcProgram(a)
-console.log(b)
-
-// a = 2
-// while (2>a):
-//   print(a)
-//   a = a-1
+const source1 = "def f(a : int) -> int:\n b : int = 2\n return a + b\nx : int = 5\nf(x)"
+const source = "class Rat(object):\n n : int = 456\n d : int = 789\n def __init__(c : bool, self: Rat, n: int, d: int) -> Rat:\n  self.n = n\n  self.d = d\n  return self\nr1 : Rat = None\na : int = 0"
+const source2 = "1+2\n-2"
+const t = parser.parse(source2);
+console.log(stringifyTree(t.cursor(),source2,0));
+var ast = parseProgram(source2)
+console.log(ast)
+//ast = tcProgram(ast)
+//console.log(ast)

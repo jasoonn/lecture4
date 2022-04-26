@@ -1,21 +1,24 @@
-import {compile, run} from './compiler';
+import {compile, runn} from './compiler';
+import { output } from './webpack.config';
 
 
 document.addEventListener("DOMContentLoaded", async () => {
   function display(arg : string) {
-    const elt = document.createElement("pre");
-    document.getElementById("output").appendChild(elt);
-    elt.innerText = arg+" ";
+    const output = document.getElementById("output");
+    output.textContent += arg + "\n";
+    // const elt = document.createElement("pre");
+    // document.getElementById("output").appendChild(elt);
+    // elt.innerText = arg + "\n";
   }
   var importObject = {
     imports: {
       print_num: (arg : any) => {
         console.log("Logging from WASM: ", arg);
-        display(String(arg>>2));
+        display(String(arg));
         return arg;
       },
       print_bool: (arg : any) => {
-        if(arg === 2) { display("False"); }
+        if(arg === 0) { display("False"); }
         else { display("True"); }
         return arg;
       },
@@ -30,15 +33,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   runButton.addEventListener("click", async () => {
     const program = userCode.value;
     const output = document.getElementById("output");
+    output.innerHTML = "";
     try {
       const wat = compile(program);
       const code = document.getElementById("generated-code");
       code.textContent = wat;
-      const result = await run(wat, importObject);
-      if (result===3) output.textContent += "Result: True ";
-      else if (result===2) output.textContent += "Result: False ";
-      else if (result===1) output.textContent += "Result: None ";
-      else output.textContent += "Result:"+String(result>>2)+" ";
+      const result = await runn(wat, importObject);
+      output.textContent += String(result);
       output.setAttribute("style", "color: black");
     }
     catch(e) {
