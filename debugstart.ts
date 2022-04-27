@@ -9,9 +9,12 @@ const source1 = "def f(a : int) -> int:\n b : int = 2\n return a + b\nx : int = 
 //def __init__(c : bool, self: Rat, n: int, d: int) -> Rat:\n  self.n = n\n  self.d = d\n  return self\nC().new(42).clear()\nhaha.cool()\nhaha.coo\n Rat()\nr1.d = 5
 const source = `
 class C(object):
-  x : int = 0
+  d : D = None
+  
+class D(object):
+  c : C = None
 c : C = None
-c = None`
+c.d`
 const t = parser.parse(source);
 console.log(stringifyTree(t.cursor(),source,0));
 var ast = parseProgram(source)

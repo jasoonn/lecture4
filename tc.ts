@@ -86,7 +86,7 @@ export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : Body
       const [args0, ret0] = classes.get(objType.class)[0].get(e.method);
       const newArgs0 = args0.map((a, i) => {
         const argtyp = tcExpr(e.args[i], functions, variables, classes, className);
-        if(a !== argtyp.a) { throw new Error(`Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
+        if(!assignable(a, argtyp.a)) { throw new Error(`Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
         return argtyp
       });
       return {...e, a: ret0,  args: newArgs0, objExpr};
@@ -114,7 +114,7 @@ export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : Body
 
       const newArgs = args.map((a, i) => {
         const argtyp = tcExpr(e.args[i], functions, variables, classes, className);
-        if(a !== argtyp.a) { throw new Error(`Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
+        if(!assignable(a, argtyp.a)) { throw new Error(`Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
         return argtyp
       });
 
@@ -128,9 +128,9 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
       if (variables.has(s.name))
         throw new Error(`Duplicate declaration of identifier in same scope ${s.name}`)
       const initval = tcExpr(s.init, functions, variables, classes, className);
-      if (initval.a !== s.type) 
+      if (!assignable(s.type, initval.a)) 
         throw new Error(`Expected type ${s.type}; got type ${initval.a}`)
-        variables.set(s.name, initval.a)
+      variables.set(s.name, initval.a)
       return { ...s, a: s.type, init: initval }
     case "assign": {
       const rhs = tcExpr(s.value, functions, variables, classes, className);
@@ -184,7 +184,7 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
     case "return": {
       console.log(s)
       const valTyp = tcExpr(s.value, functions, variables, classes, className);
-      if(valTyp.a !== currentReturn) {
+      if(!assignable(currentReturn, valTyp.a)) {
         throw new Error(`${valTyp} returned but ${currentReturn} expected.`);
       }
       return { ...s, value: valTyp };
