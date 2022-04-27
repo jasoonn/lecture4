@@ -6,13 +6,15 @@ type FunctionsEnv = Map<string, [Type[], Type]>;
 type BodyEnv = Map<string, Type>;
 type ClassEnv = Map<string, [Map<string, [Type[], Type]>, Map<string, Type>]>;
 
-function assinable (s: Type, t: Type) {
-  console.log(s, t);
+function assignable (s: Type, t: Type) {
   if (s === t) return true;
-  //cast type
-  if ((s as { tag: "object", class: string }).tag === "object") return ((t as { tag: "object", class: string }).tag === "object") && 
-                                                                       ((t as { tag: "object", class: string }).class === (s as { tag: "object", class: string }).class);
-  if (s === "none") return (t as { tag: "object", class: string }).tag === "object";
+  //@ts-ignore
+  if (s.tag === "object"){
+    if (t === "none") return true;
+    //@ts-ignore
+    else return (t.tag === "object") && (t.class === s.class);
+    if (s === "none") return (t as { tag: "object", class: string }).tag === "object";
+  } 
   return false;
 }
 
@@ -133,7 +135,7 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
     case "assign": {
       const rhs = tcExpr(s.value, functions, variables, classes, className);
       const lhs = tcExpr(s.name, functions, variables, classes, className);
-      if (!assinable(lhs.a, rhs.a)) throw new Error("Invalid Assign");
+      if (!assignable(lhs.a, rhs.a)) throw new Error("Invalid Assign");
       return { ...s, name: lhs, value: rhs };
     }
     case "define": {
@@ -228,7 +230,7 @@ export function tcProgram(p : Stmt<any>[]) : Stmt<Type>[] {
       //return tcStmt(s, functions, globals, "none");
       
       const value = tcExpr(s.init, functions, globals, classes, "");
-      if (!assinable(value.a, s.type)) throw new Error("Var init do not match");
+      if (!assignable(s.type, value.a)) throw new Error("Var init do not match");
       globals.set(s.name, s.type);
       return { ...s, a: s.type, init: value };
     }
