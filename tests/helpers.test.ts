@@ -12,6 +12,9 @@ export function typeCheck(source: string) : Type {
 // JavaScript-side helpers
 export async function run(source: string) {
   const wat = compile(source);
+  //@ts-ignore
+  importObject.imports.mem = new WebAssembly.Memory({initial:10, maximum:100});
+
   await runn(wat, importObject);
   return;
 }

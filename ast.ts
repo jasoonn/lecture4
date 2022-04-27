@@ -8,7 +8,7 @@ export type Parameter<A> =
   | { a?: A, name: string, typ: Type }
 
 export type Stmt<A> =
-  | { a?: A, tag: "assign", name: string, value: Expr<A> }
+  | { a?: A, tag: "assign", name: Expr<A>, value: Expr<A> }
   | { a?: A, tag: "varinit", name: string, type: Type, init: Expr<A> }
   | { a?: A, tag: "expr", expr: Expr<A> }
   | { a?: A, tag: "pass"}
@@ -27,6 +27,9 @@ export type Expr<A> =
   | { a?: A, tag: "id", name: string, global?: boolean }
   | { a?: A, tag: "call", name: string, args: Expr<A>[] }
   | { a?: A, tag: "none"}
+  | { a?: A, tag: "getField", objExpr: Expr<A>, vairable: string}
+  | { a?: A, tag: "methodCall", objExpr: Expr<A>, method: string, args: Expr<A>[]}
+  | { a?: A, tag: "constructer", name: string}
 
 
 const ops = {"+": true, "-": true, "*": true, "//": true, "%": true, "==": true, "!=": true, "<=": true, ">=": true, "<": true, ">": true, "is": true, "and": true, "or": true};

@@ -40,19 +40,21 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt<any> {
       return { tag: "return", value };
     case "AssignStatement":
       t.firstChild(); // focused on name (the first child)
-      var name = s.substring(t.from, t.to);
+      var name = traverseExpr(s, t);
       t.nextSibling(); // focused on = sign. May need this for complex tasks, like +=!
       //@ts-ignore
       if (t.type.name == "TypeDef") {
         t.firstChild();
         t.nextSibling();
-        var initType = s.substring(t.from, t.to);
+        var typeName = s.substring(t.from, t.to);
         t.parent()
         t.nextSibling(); // assignop
         t.nextSibling(); // value
         var value = traverseExpr(s, t);
         t.parent();
-        return { tag: "varinit", name, type: <Type> initType, init: value};
+        var realName = (name as {tag: "id", name: string})
+        if (typeName!=="none"&&typeName!=="int"&&typeName!=="bool") return { tag: "varinit", name: realName.name, type: <Type> { tag: "object", class: typeName }, init: value};
+        else return { tag: "varinit", name: realName.name, type: <Type> typeName, init: value};
       }
         
       t.nextSibling(); // focused on the value expression
@@ -69,7 +71,7 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt<any> {
     case "FunctionDefinition":
       t.firstChild();  // Focus on def
       t.nextSibling(); // Focus on name of function
-      var name = s.substring(t.from, t.to);
+      var name1 = s.substring(t.from, t.to);
       t.nextSibling(); // Focus on ParamList
       var params = traverseParameters(s, t)
       t.nextSibling(); // Focus on Body or TypeDef
@@ -90,7 +92,7 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt<any> {
       t.parent();      // Pop to FunctionDefinition
       return {
         tag: "define",
-        name, params, body, ret
+        name: name1, params, body, ret
       }
     case "ClassDefinition":
       t.firstChild(); //class
@@ -246,14 +248,56 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
     case "VariableName":
       return { tag: "id", name: s.substring(t.from, t.to) };
     case "CallExpression":
-      t.firstChild(); // Focus name
+      t.firstChild(); //Focus on name or callexpression
+      let maybeTD = t;
+      if (maybeTD.type.name==="MemberExpression"){
+        var firstExpr = traverseExpr(s, t); //MemberExpression
+        if (t.nextSibling()){ //ArgList
+          var args = traverseArguments(t, s);
+          if (firstExpr as {tag: "getField", objExpr: Expr<any>, vairable: string}){
+            const expr = (firstExpr as {tag: "getField", objExpr: Expr<any>, vairable: string});
+            const result: Expr<any> =  {tag: "methodCall", objExpr: expr.objExpr, method: expr.vairable, args};
+            t.parent();
+            return result;
+          }else{
+            throw new Error("CallExpression weird");
+          }
+        }else{
+          t.parent();
+          return firstExpr;
+        }
+      }else{
+        var name = s.substring(t.from, t.to);
+        if (name==="print") {
+          t.nextSibling(); // Focus ArgList
+          var args = traverseArguments(t, s);
+          t.parent();
+          return {tag: "call", name, args: args};
+        }
+        t.nextSibling();
+        let maybeTD = t;
+        if (maybeTD.type.name!=="ArgList") throw new Error("Not () in constructor");
+        t.parent();
+        return  {tag: "constructer", name};
+      }
+      // t.firstChild(); // Focus name
+      // var name = s.substring(t.from, t.to);
+      // t.nextSibling(); // Focus ArgList
+      // t.firstChild(); // Focus open paren
+      // var args = traverseArguments(t, s);
+      // var result : Expr<any> = { tag: "call", name, args: args};
+      // t.parent();
+      // return result;
+    case "MemberExpression":
+      t.firstChild(); //First field
+      var firstExpr = traverseExpr(s, t);
+      t.nextSibling(); //.
+      t.nextSibling(); //name
       var name = s.substring(t.from, t.to);
-      t.nextSibling(); // Focus ArgList
-      t.firstChild(); // Focus open paren
-      var args = traverseArguments(t, s);
-      var result : Expr<any> = { tag: "call", name, args: args};
       t.parent();
-      return result;
+      return {
+        tag: "getField", objExpr: firstExpr, vairable: name
+      }
     case "UnaryExpression":
       t.firstChild(); //go to op
       var opStr = s.substring(t.from, t.to);
@@ -268,6 +312,12 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
         op: opStr,
         value
       }
+    case "ParenthesizedExpression":
+      t.firstChild(); //go to (
+      t.nextSibling();
+      const expr = traverseExpr(s, t);
+      t.parent();
+      return expr;
     case "BinaryExpression":
       t.firstChild(); // go to lhs
       const lhsExpr = traverseExpr(s, t);
