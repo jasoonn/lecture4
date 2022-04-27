@@ -177,7 +177,7 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
     }
     case "expr": {
       const ret = tcExpr(s.expr, functions, variables, classes, className);
-      return { ...s, expr: ret };
+      return { ...s, a: ret.a,  expr: ret };
     }
     case "return": {
       console.log(s)

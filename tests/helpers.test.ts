@@ -1,8 +1,14 @@
 import { importObject } from "./import-object.test";
 import { compile, runn } from '../compiler';
+import { parseProgram } from '../parser'
+import {tcProgram} from '../tc';
 
 // Modify typeCheck to return a `Type` as we have specified below
 export function typeCheck(source: string) : Type {
+  let val = tcProgram(parseProgram(source));
+  for (var i = val.length-1; i>=0;i--){
+    if (val[i].tag=="expr") return val[i].a;
+  }
   return "none";
 }
 

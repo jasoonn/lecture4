@@ -11,7 +11,10 @@ const source = `
 class C(object):
   x : int = 123
 c : C = None
-C().x`
+c = C()
+print(c.x)
+c.x = 456
+print(c.x)`
 const t = parser.parse(source);
 console.log(stringifyTree(t.cursor(),source,0));
 var ast = parseProgram(source)
