@@ -198,7 +198,15 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env, classes: ClassEnv) 
         else { valStmts.push(`(global.set $${stmt.name.name})`); }
         return valStmts;
       }else if(stmt.name.tag==="getField"){
-        return valStmts;
+        const objExpr = codeGenExpr(stmt.name.objExpr, locals, classes);
+        return [
+          ...objExpr,
+          //@ts-ignore
+          `(i32.const ${classes.get(stmt.name.objExpr.a.class).get(stmt.name.vairable)[0]*4})`,
+          `(i32.add)`, 
+          ...valStmts,
+          `(i32.store)`
+        ];
       }else{
         throw new Error("Not id and getField in assign statement");
       }
