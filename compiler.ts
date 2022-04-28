@@ -87,8 +87,9 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env, classes: ClassEnv, 
       const objExpr = codeGenExpr(expr.objExpr, locals, classes, className);
       return [
         ...objExpr,
-        `(tee_local $tmpForJudge)`,
-        `(get_local $tmpForJudge)`,
+        `(global.set $ttmpForJudge)`,
+        `(global.get $ttmpForJudge)`,
+        `(global.get $ttmpForJudge)`,
         `(i32.const 4)`,
         `(i32.lt_s)`,
         `(if
@@ -136,6 +137,16 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env, classes: ClassEnv, 
       return [
         ...objExpr,
         ...valStmtss,
+        `(global.set $ttmpForJudge)`,
+        `(global.get $ttmpForJudge)`,
+        `(global.get $ttmpForJudge)`,
+        `(i32.const 4)`,
+        `(i32.lt_s)`,
+        `(if
+          (then
+            (call $err)
+          )
+        )`,
         //@ts-ignore
         `(call $${expr.objExpr.a.class+"$"+expr.method})`
       ]
@@ -307,6 +318,7 @@ export function compile(source : string) : string {
       (func $print_none (import "imports" "print_none") (param i32) (result i32))
       (func $err (import "imports" "err"))
       (global $heap (mut i32) (i32.const 4))
+      (global $ttmpForJudge (mut i32) (i32.const 0))
       ${varDecls}
       ${allFuns}
       ${allClasses}
