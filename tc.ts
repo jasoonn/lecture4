@@ -152,11 +152,12 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
     }
     case "class":
       let fields: Stmt<Type>[] = [];
+      const bodyvars = new Map<string, Type>(variables.entries());
       fields = s.fields.map(
-        field=>(tcStmt(field, functions, variables, classes, s.name, currentReturn))
+        field=>(tcStmt(field, functions, bodyvars, classes, s.name, currentReturn))
       );
       let methods = s.methods.map(
-        method=>(tcStmt(method, functions, variables, classes, s.name, currentReturn))
+        method=>(tcStmt(method, functions, bodyvars, classes, s.name, currentReturn))
       );
       return { ...s, fields, methods };
     case "while": {
