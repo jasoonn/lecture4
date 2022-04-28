@@ -135,6 +135,15 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env, classes: ClassEnv, 
       var valStmtss = expr.args.map(e => codeGenExpr(e, locals, classes, className)).flat();
       return [
         ...objExpr,
+        `(tee_local $tmpForJudge)`,
+        `(get_local $tmpForJudge)`,
+        `(i32.const 4)`,
+        `(i32.lt_s)`,
+        `(if
+          (then
+            (call $err)
+          )
+        )`,
         ...valStmtss,
         //@ts-ignore
         `(call $${expr.objExpr.a.class+"$"+expr.method})`
@@ -149,8 +158,11 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env, classes: ClassEnv, 
           case "none": toCall = "print_none"; break;
           default: throw new Error("Unprintable");
         }
+        valStmts.push(`(call $${toCall})`);
+      }else{
+        valStmts.push(`(call $${toCall})`);
       }
-      valStmts.push(`(call $${toCall})`);
+      
       return valStmts;
   }
 }
