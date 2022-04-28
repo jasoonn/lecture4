@@ -10,12 +10,15 @@ const source1 = "def f(a : int) -> int:\n b : int = 2\n return a + b\nx : int = 
 const source = `
 class C(object):
   x : int = 123
-  def getX(self: C) -> int:
-    return self.x
-  def setX(self: C, x: int):
+  def new(self: C, x: int) -> C:
+    print(self.x)
     self.x = x
-c: C = None
-c.setX(5)
+    print(self.x)
+    return self
+  def clear(self: C) -> C:
+    return self.new(123)
+
+C().new(42).clear()
 `
 const t = parser.parse(source);
 console.log(stringifyTree(t.cursor(),source,0));
