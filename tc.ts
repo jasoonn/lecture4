@@ -33,7 +33,7 @@ export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : Body
         case "-":
           if (value.a!=="int" ) throw new Error("TYPE ERROR in uniop");
           return {...e, a: "int"};
-        default: throw new Error(`Unhandled unary op`);
+        default: throw new Error(`TYPE ERROR:Unhandled unary op`);
       }
     }
     case "binop": {
@@ -61,32 +61,32 @@ export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : Body
         case "and":
         case "or":
           return { ...e, a: "bool" };
-        default: throw new Error(`Unhandled binary op`)
+        default: throw new Error(`TYPE ERROR:Unhandled binary op`)
       }
     }
     case "id": 
       if(variables.has(e.name)) return { ...e, a: variables.get(e.name) };
       else if(e.name==="self"){
-        if (className==="") throw new Error("Self not in the class")
+        if (className==="") throw new Error("TYPE ERROR:Self not in the class")
         let typ:Type = {tag: "object", class: className};
         return {...e, a: typ};
       }
-      else throw new Error(`Not a variable: ${e.name}`)
+      else throw new Error(`TYPE ERROR:Not a variable: ${e.name}`)
     case "getField":
       var objExpr = tcExpr(e.objExpr, functions, variables, classes, className);
       var objType = objExpr.a as { tag: "object", class: string };
-      if (objType.tag!="object" || !classes.has(objType.class)) throw new Error("Not an object or not have class");
-      if (!classes.get(objType.class)[1].has(e.vairable)) throw new Error("Object do not have this variable");
+      if (objType.tag!="object" || !classes.has(objType.class)) throw new Error("TYPE ERROR:Not an object or not have class");
+      if (!classes.get(objType.class)[1].has(e.vairable)) throw new Error("TYPE ERROR:Object do not have this variable");
       return {...e, a: classes.get(objType.class)[1].get(e.vairable), objExpr};
     case "methodCall":
       var objExpr = tcExpr(e.objExpr, functions, variables, classes, className);
       var objType = objExpr.a as { tag: "object", class: string };
-      if (objType.tag!="object" || !classes.has(objType.class)) throw new Error("Not an object or not have class");
-      if (!classes.get(objType.class)[0].has(e.method)) throw new Error("Object do not have this method");
+      if (objType.tag!="object" || !classes.has(objType.class)) throw new Error("TYPE ERROR:Not an object or not have class");
+      if (!classes.get(objType.class)[0].has(e.method)) throw new Error("TYPE ERROR:Object do not have this method");
       const [args0, ret0] = classes.get(objType.class)[0].get(e.method);
       const newArgs0 = args0.map((a, i) => {
         const argtyp = tcExpr(e.args[i], functions, variables, classes, className);
-        if(!assignable(a, argtyp.a)) { throw new Error(`Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
+        if(!assignable(a, argtyp.a)) { throw new Error(`TYPE ERROR:Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
         return argtyp
       });
       return {...e, a: ret0,  args: newArgs0, objExpr};
@@ -95,26 +95,26 @@ export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : Body
         let typ:Type = {tag: "object", class: e.name};
         return {...e, a: typ};
       } 
-      else throw new Error("Unknow class constructor");
+      else throw new Error("TYPE ERROR:Unknow class constructor");
     case "call":
       if(e.name === "print") {
-        if(e.args.length !== 1) { throw new Error("print expects a single argument"); }
+        if(e.args.length !== 1) { throw new Error("TYPE ERROR:print expects a single argument"); }
         const newArgs = [tcExpr(e.args[0], functions, variables, classes, className)];
         const res : Expr<Type> = { ...e, a: "none", args: newArgs } ;
         return res;
       }
       if(!functions.has(e.name)) {
-        throw new Error(`function ${e.name} not found`);
+        throw new Error(`TYPE ERROR:function ${e.name} not found`);
       }
 
       const [args, ret] = functions.get(e.name);
       if(args.length !== e.args.length) {
-        throw new Error(`Expected ${args.length} arguments but got ${e.args.length}`);
+        throw new Error(`TYPE ERROR:Expected ${args.length} arguments but got ${e.args.length}`);
       }
 
       const newArgs = args.map((a, i) => {
         const argtyp = tcExpr(e.args[i], functions, variables, classes, className);
-        if(!assignable(a, argtyp.a)) { throw new Error(`Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
+        if(!assignable(a, argtyp.a)) { throw new Error(`TYPE ERROR: Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
         return argtyp
       });
 
@@ -126,16 +126,16 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
   switch(s.tag) {
     case "varinit":
       if (variables.has(s.name))
-        throw new Error(`Duplicate declaration of identifier in same scope ${s.name}`)
+        throw new Error(`TYPE ERROR:Duplicate declaration of identifier in same scope ${s.name}`)
       const initval = tcExpr(s.init, functions, variables, classes, className);
       if (!assignable(s.type, initval.a)) 
-        throw new Error(`Expected type ${s.type}; got type ${initval.a}`)
+        throw new Error(`TYPE ERROR:Expected type ${s.type}; got type ${initval.a}`)
       variables.set(s.name, initval.a)
       return { ...s, a: s.type, init: initval }
     case "assign": {
       const rhs = tcExpr(s.value, functions, variables, classes, className);
       const lhs = tcExpr(s.name, functions, variables, classes, className);
-      if (!assignable(lhs.a, rhs.a)) throw new Error("Invalid Assign");
+      if (!assignable(lhs.a, rhs.a)) throw new Error("TYPE ERROR:Invalid Assign");
       return { ...s, name: lhs, value: rhs };
     }
     case "define": {
@@ -156,7 +156,7 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
     case "while": {
       const cond = tcExpr(s.cond, functions, variables, classes, className);
       if (cond.a !== "bool")
-        throw new Error(`Condition expression cannot be of type ${cond.a}`)
+        throw new Error(`TYPE ERROR:Condition expression cannot be of type ${cond.a}`)
       const stmts = s.body.map(bd => tcStmt(bd, functions, variables, classes, className, currentReturn));
       return { ...s, cond: cond, body: stmts }
     }
@@ -165,7 +165,7 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
     case "if": {
       const cond = tcExpr(s.cond, functions, variables, classes, className)
       if (cond.a !== "bool")
-        throw new Error(`Condition expression cannot be of type ${cond.a}`)
+        throw new Error(`TYPE ERROR:Condition expression cannot be of type ${cond.a}`)
       const bd1 = s.body.map(bd => tcStmt(bd, functions, variables, classes, className, currentReturn));
       let eicond : Expr<Type> = { a: "bool", tag: "false" }
       let eibody : Stmt<Type>[] = []
@@ -185,7 +185,7 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
       console.log(s)
       const valTyp = tcExpr(s.value, functions, variables, classes, className);
       if(!assignable(currentReturn, valTyp.a)) {
-        throw new Error(`${valTyp} returned but ${currentReturn} expected.`);
+        throw new Error(`TYPE ERROR:${valTyp} returned but ${currentReturn} expected.`);
       }
       return { ...s, value: valTyp };
     }
@@ -206,7 +206,7 @@ export function tcProgram(p : Stmt<any>[]) : Stmt<Type>[] {
           if (method as {tag: "define", name: string, params: Parameter<any>[], ret: Type, body: Stmt<any>[] }){
             var newMethod = (method as {a?: any, tag: "define", name: string, params: Parameter<any>[], ret: Type, body: Stmt<any>[] })
             methods.set(newMethod.name, [newMethod.params.map(p=>p.typ), newMethod.ret]);
-          }else throw new Error("Class method field is not method");
+          }else throw new Error("TYPE ERROR:Class method field is not method");
         }
       )
       var fields = new Map<string, Type>();
@@ -214,7 +214,7 @@ export function tcProgram(p : Stmt<any>[]) : Stmt<Type>[] {
         field=>{
           if (field as  {a?: any, tag: "varinit", name: string, type: Type, init: Expr<any> }){
             var newField = (field as  {a?: any, tag: "varinit", name: string, type: Type, init: Expr<any> });
-            if (fields.has(newField.name)) throw new Error("Duplicate class field");
+            if (fields.has(newField.name)) throw new Error("TYPE ERROR:Duplicate class field");
             fields.set(newField.name, newField.type);
           }
         }
@@ -230,7 +230,7 @@ export function tcProgram(p : Stmt<any>[]) : Stmt<Type>[] {
       //return tcStmt(s, functions, globals, "none");
       
       const value = tcExpr(s.init, functions, globals, classes, "");
-      if (!assignable(s.type, value.a)) throw new Error("Var init do not match");
+      if (!assignable(s.type, value.a)) throw new Error("TYPE ERROR:Var init do not match");
       globals.set(s.name, s.type);
       return { ...s, a: s.type, init: value };
     }
