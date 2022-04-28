@@ -84,10 +84,13 @@ export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : Body
       if (objType.tag!="object" || !classes.has(objType.class)) throw new Error("TYPE ERROR:Not an object or not have class");
       if (!classes.get(objType.class)[0].has(e.method)) throw new Error("TYPE ERROR:Object do not have this method");
       const [args0, ret0] = classes.get(objType.class)[0].get(e.method);
-      const newArgs0 = args0.map((a, i) => {
-        const argtyp = tcExpr(e.args[i], functions, variables, classes, className);
-        if(!assignable(a, argtyp.a)) { throw new Error(`TYPE ERROR:Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
-        return argtyp
+      const newArgs0: Expr<any>[] = [];
+      args0.forEach((a, i) => {
+        if (i!==0){
+          const argtyp = tcExpr(e.args[i], functions, variables, classes, className);
+          if(!assignable(a, argtyp.a)) { throw new Error(`TYPE ERROR:Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
+          newArgs0.push(argtyp);
+        }
       });
       return {...e, a: ret0,  args: newArgs0, objExpr};
     case "constructer":
@@ -140,6 +143,9 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
     }
     case "define": {
       const bodyvars = new Map<string, Type>(variables.entries());
+      if (s.params.length ===0 || s.params[0].name!=="self") throw new Error("TYPE ERROR: self is not in param or in first param");
+      //@ts-ignore
+      s.params = s.params.slice(1);
       s.params.forEach(p => { bodyvars.set(p.name, p.typ)});
       const newStmts = s.body.map(bs => tcStmt(bs, functions, bodyvars, classes, className, s.ret));
       return { ...s, body: newStmts };

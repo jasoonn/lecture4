@@ -203,7 +203,7 @@ export function traverseType(s : string, t : TreeCursor) : Type {
     case "VariableName":
       const name = s.substring(t.from, t.to);
       //@ts-ignore
-      if(name !== "int" || name !== "bool") {
+      if(name !== "int" && name !== "bool") {
         const newTyp : Type = { tag: "object", class: name };
         return newTyp;
       }
@@ -246,6 +246,8 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
     case "Number":
       return { tag: "number", value: Number(s.substring(t.from, t.to)) };
     case "VariableName":
+      return { tag: "id", name: s.substring(t.from, t.to) };
+    case "self":
       return { tag: "id", name: s.substring(t.from, t.to) };
     case "CallExpression":
       t.firstChild(); //Focus on name or callexpression
