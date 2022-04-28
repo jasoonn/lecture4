@@ -148,7 +148,7 @@ export function tcStmt(s : Stmt<any>, functions : FunctionsEnv, variables : Body
       // s.params = s.params.slice(1);
       s.params.forEach(p => { bodyvars.set(p.name, p.typ)});
       const newStmts = s.body.map(bs => tcStmt(bs, functions, bodyvars, classes, className, s.ret));
-      return { ...s, body: newStmts };
+      return { ...s, a: s.ret , body: newStmts };
     }
     case "class":
       let fields: Stmt<Type>[] = [];
