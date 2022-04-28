@@ -66,7 +66,7 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env, classes: ClassEnv, 
     case "id":
       // Since we type-checked for making sure all variable exist, here we
       // just check if it's a local variable and assume it is global if not
-      if(locals.has(expr.name)) { return [`(local.get $${expr.name})`]; }
+      if(locals.has(expr.name)||expr.name === "self") { return [`(local.get $${expr.name})`]; }
       else { return [`(global.get $${expr.name})`]; }
     case "binop": {
       const lhsExprs = codeGenExpr(expr.lhs, locals, classes, className);
@@ -135,7 +135,6 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env, classes: ClassEnv, 
       var valStmtss = expr.args.map(e => codeGenExpr(e, locals, classes, className)).flat();
       return [
         ...objExpr,
-        `(local $self i32)`, 
         ...valStmtss,
         //@ts-ignore
         `(call $${expr.objExpr.a.class+"$"+expr.method})`

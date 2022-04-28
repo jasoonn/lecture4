@@ -14,6 +14,7 @@ class C(object):
     return self.x
   def setX(self: C, x: int):
     self.x = x
+C().setX(5)
 C().getX()
 `
 const t = parser.parse(source);
