@@ -12,9 +12,9 @@ class C(object):
   x : int = 123
   def getX(self: C) -> int:
     return self.x
-  def setX(self: C, x: int):
-    self.x = x
-C().setX(5)
+  def getY(self: C) -> int:
+    return self.getX()+1
+C().getY()
 `
 const t = parser.parse(source);
 console.log(stringifyTree(t.cursor(),source,0));

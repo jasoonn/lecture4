@@ -56,7 +56,7 @@ export function tcExpr(e : Expr<any>, functions : FunctionsEnv, variables : Body
           let typ : Type = "bool"
           if (e.op == "+" || e.op == "-" || e.op == "*" || e.op == "//" || e.op == "%")
             typ = "int"
-          return { ...e, a: typ };
+          return { ...e, a: typ, lhs: typedLeft, rhs: typedRight};
         case "is":
         case "and":
         case "or":
