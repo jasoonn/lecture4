@@ -27,6 +27,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         display("None");
         return arg;
       },
+      err: () => {
+        throw new Error("RUNTIME ERROR: HAHA");
+      },
       mem: memory
     },
   };

@@ -17,10 +17,14 @@ export function typeCheck(source: string) : Type {
 // within another function in your compiler, for example if you need other
 // JavaScript-side helpers
 export async function run(source: string) {
+  
   const wat = compile(source);
   //@ts-ignore
   importObject.imports.mem = new WebAssembly.Memory({initial:10, maximum:100});
-
+  //@ts-ignore
+  importObject.imports.err = () => {
+    throw new Error("RUNTIME ERROR: HAHA");
+  };
   await runn(wat, importObject);
   return;
 }

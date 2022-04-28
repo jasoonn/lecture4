@@ -79,6 +79,15 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env, classes: ClassEnv) 
       const objExpr = codeGenExpr(expr.objExpr, locals, classes);
       return [
         ...objExpr,
+        `(tee_local $tmpForJudge)`,
+        `(get_local $tmpForJudge)`,
+        `(i32.const 4)`,
+        `(i32.lt_s)`,
+        `(if
+          (then
+            (call $err)
+          )
+        )`,
         //@ts-ignore
         `(i32.const ${classes.get(expr.objExpr.a.class).get(expr.vairable)[0]*4})`,
         `(i32.add)`, 
@@ -249,7 +258,7 @@ export function compile(source : string) : string {
   console.log(stmts)
   const allStmts = stmts.map(s => codeGenStmt(s, emptyEnv, classEnv)).flat();
 
-  const main = [`(local $scratch i32)`, ...allStmts].join("\n");
+  const main = [`(local $scratch i32)`, `(local $tmpForJudge i32)`, ...allStmts].join("\n");
 
   const lastStmt = ast[ast.length - 1];
   const isExpr = lastStmt.tag === "expr";
@@ -266,6 +275,7 @@ export function compile(source : string) : string {
       (func $print_num (import "imports" "print_num") (param i32) (result i32))
       (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
       (func $print_none (import "imports" "print_none") (param i32) (result i32))
+      (func $err (import "imports" "err"))
       (global $heap (mut i32) (i32.const 4))
       ${varDecls}
       ${allFuns}
